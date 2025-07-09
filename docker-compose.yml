@@ -1,0 +1,71 @@
+version: '3'
+
+services:
+  # UI server for monitoring
+  ui-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.ui
+    ports:
+      - "8428:8428"
+    volumes:
+      - ./src:/app
+      - news_logs:/var/log/news_man
+    restart: unless-stopped
+    environment:
+      - LOG_FILE=/var/log/news_man/news_man.log
+    depends_on:
+      - news-processor
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      
+  # API server for querying articles
+  api-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "8427:8427"
+    volumes:
+      - ./src:/app
+      - news_logs:/var/log/news_man
+    restart: unless-stopped
+    environment:
+      - QDRANT_HOST=host.docker.internal
+      - QDRANT_PORT=6333
+      - QDRANT_COLLECTION=news_articles
+      - LOG_FILE=/var/log/news_man/news_man.log
+      - API_PORT=8427
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # News feed processor service
+  news-processor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./src:/app
+      - news_cache:/tmp/news_cache
+      - news_logs:/var/log/news_man
+    restart: unless-stopped
+    environment:
+      # Connect to the host's Qdrant instance
+      - QDRANT_HOST=host.docker.internal
+      - QDRANT_PORT=6333
+      - QDRANT_COLLECTION=news_articles
+      - UPDATE_INTERVAL_HOURS=1
+      - INITIAL_DELAY_SECONDS=30
+      - LOG_FILE=/var/log/news_man/news_man.log
+    healthcheck:
+      test: ["CMD", "ps", "aux", "|", "grep", "entrypoint.py"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  news_cache:
+  news_logs:

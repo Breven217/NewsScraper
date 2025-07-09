@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>News RSS Feed Processor Monitor</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding-top: 20px;
+            background-color: #f8f9fa;
+        }
+        .navbar-brand {
+            font-weight: bold;
+        }
+        .card {
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .card-header {
+            font-weight: bold;
+            background-color: #f1f1f1;
+        }
+        #logContainer {
+            height: 500px;
+            overflow-y: auto;
+            background-color: #212529;
+            color: #f8f9fa;
+            font-family: 'Courier New', monospace;
+            padding: 10px;
+            border-radius: 0 0 8px 8px;
+        }
+        .log-entry {
+            margin: 0;
+            padding: 2px 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+        }
+        .status-running {
+            background-color: #28a745;
+        }
+        .status-stopped {
+            background-color: #dc3545;
+        }
+        .api-route {
+            margin-bottom: 15px;
+            border-left: 4px solid #007bff;
+            padding-left: 15px;
+        }
+        .method-get {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .method-post {
+            color: #007bff;
+            font-weight: bold;
+        }
+        .param-name {
+            font-family: monospace;
+            font-weight: bold;
+        }
+        .param-optional {
+            color: #6c757d;
+            font-style: italic;
+        }
+        .param-required {
+            color: #dc3545;
+        }
+        .api-section {
+            margin-bottom: 30px;
+        }
+        .api-section h4 {
+            border-bottom: 1px solid #dee2e6;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+        .code-block {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            font-family: monospace;
+            margin: 10px 0;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4 rounded">
+            <div class="container-fluid">
+                <a class="navbar-brand" href="#">News RSS Feed Processor Monitor</a>
+                <div class="d-flex">
+                    <span class="navbar-text me-3">
+                        <span id="qdrantStatus" class="status-indicator status-stopped"></span>
+                        Qdrant
+                    </span>
+                    <span class="navbar-text me-3">
+                        <span id="processorStatus" class="status-indicator status-stopped"></span>
+                        Processor
+                    </span>
+                    <span class="navbar-text me-3">
+                        <span id="apiStatus" class="status-indicator status-stopped"></span>
+                        API
+                    </span>
+                    <span class="navbar-text">
+                        <span id="uiStatus" class="status-indicator status-running"></span>
+                        UI
+                    </span>
+                </div>
+            </div>
+        </nav>
+        
+        <div class="row">
+            <!-- Left Column: System Logs and API Documentation -->
+            <div class="col-md-7">
+                <!-- System Logs Section -->
+                <div class="row mb-4">
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <span>System Logs</span>
+                                <div>
+                                    <button id="clearLogs" class="btn btn-sm btn-outline-danger">Clear</button>
+                                </div>
+                            </div>
+                            <div id="logContainer" style="height: 300px;"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- API Documentation Section -->
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <span>API Documentation</span>
+                            </div>
+                            <div class="card-body">
+                                <!-- Regular News API Section -->
+                                <div class="api-section">
+                                    <h4>News Articles API</h4>
+                                    
+                                    <div class="api-route">
+                                        <h5><span class="method-get">GET</span> /api/search</h5>
+                                        <p>Search for news articles in the main collection.</p>
+                                        <h6>Parameters:</h6>
+                                        <ul>
+                                            <li><span class="param-name">query</span> <span class="param-optional">(optional)</span>: Search query string</li>
+                                            <li><span class="param-name">limit</span> <span class="param-optional">(optional)</span>: Maximum number of results (default: 10)</li>
+                                            <li><span class="param-name">min_score</span> <span class="param-optional">(optional)</span>: Minimum relevance score (default: 0.35)</li>
+                                            <li><span class="param-name">source</span> <span class="param-optional">(optional)</span>: Filter by source</li>
+                                            <li><span class="param-name">category</span> <span class="param-optional">(optional)</span>: Filter by category</li>
+                                            <li><span class="param-name">date</span> <span class="param-optional">(optional)</span>: Filter by published date (ISO format: YYYY-MM-DD)</li>
+                                            <li><span class="param-name">date_operand</span> <span class="param-optional">(optional)</span>: Date comparison operator (on, before, after, on_or_before/<=, on_or_after/>=) - default: on</li>
+                                        </ul>
+                                        <h6>Examples:</h6>
+                                        <div class="code-block">GET /api/search?query=climate&limit=5&source=cnn</div>
+                                        <div class="code-block">GET /api/search?query=climate&date=2025-06-20&date_operand=after</div>
+                                        <div class="code-block">GET /api/search?query=climate&date=2025-06-20&date_operand=on_or_after</div>
+                                        <div class="code-block">GET /api/search?query=climate&date=2025-06-20&date_operand=<=</div>
+                                    </div>
+                                    
+                                    <div class="api-route">
+                                        <h5><span class="method-get">GET</span> /api/sources</h5>
+                                        <p>Get all available news sources.</p>
+                                        <h6>Example:</h6>
+                                        <div class="code-block">GET /api/sources</div>
+                                    </div>
+                                    
+                                    <div class="api-route">
+                                        <h5><span class="method-get">GET</span> /api/categories</h5>
+                                        <p>Get all available news categories.</p>
+                                        <h6>Example:</h6>
+                                        <div class="code-block">GET /api/categories</div>
+                                    </div>
+                                    
+                                    <div class="api-route">
+                                        <h5><span class="method-get">GET</span> /api/stats</h5>
+                                        <p>Get statistics about articles in the main collection.</p>
+                                        <h6>Example:</h6>
+                                        <div class="code-block">GET /api/stats</div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Company News API Section -->
+                                <div class="api-section">
+                                    <h4>Company News API</h4>
+                                    
+                                    <div class="api-route">
+                                        <h5><span class="method-get">GET</span> /api/company/search</h5>
+                                        <p>Search for articles in the company news collection.</p>
+                                        <h6>Parameters:</h6>
+                                        <ul>
+                                            <li><span class="param-name">query</span> <span class="param-optional">(optional)</span>: Search query string</li>
+                                            <li><span class="param-name">limit</span> <span class="param-optional">(optional)</span>: Maximum number of results (default: 10)</li>
+                                            <li><span class="param-name">min_score</span> <span class="param-optional">(optional)</span>: Minimum relevance score (default: 0.35)</li>
+                                            <li><span class="param-name">source</span> <span class="param-optional">(optional)</span>: Filter by source</li>
+                                            <li><span class="param-name">category</span> <span class="param-optional">(optional)</span>: Filter by category</li>
+                                            <li><span class="param-name">date</span> <span class="param-optional">(optional)</span>: Filter by published date (ISO format: YYYY-MM-DD)</li>
+                                            <li><span class="param-name">date_operand</span> <span class="param-optional">(optional)</span>: Date comparison operator (on, before, after, on_or_before/<=, on_or_after/>=) - default: on</li>
+                                        </ul>
+                                        <h6>Examples:</h6>
+                                        <div class="code-block">GET /api/company/search?query=announcement&limit=5</div>
+                                        <div class="code-block">GET /api/company/search?query=announcement&date=2025-06-01&date_operand=after</div>
+                                        <div class="code-block">GET /api/company/search?query=announcement&date=2025-06-01&date_operand=on_or_before</div>
+                                        <div class="code-block">GET /api/company/search?query=announcement&date=2025-06-01&date_operand=>=</div>
+                                    </div>
+                                    
+                                    <div class="api-route">
+                                        <h5><span class="method-post">POST</span> /api/company/add</h5>
+                                        <p>Add a new article to the company news collection.</p>
+                                        <h6>Request Body:</h6>
+                                        <ul>
+                                            <li><span class="param-name">title</span> <span class="param-required">(required)</span>: Article title</li>
+                                            <li><span class="param-name">url</span> <span class="param-required">(required)</span>: Article URL</li>
+                                            <li><span class="param-name">summary</span> <span class="param-required">(required)</span>: Article summary</li>
+                                            <li><span class="param-name">content</span> <span class="param-optional">(optional)</span>: Full article content</li>
+                                            <li><span class="param-name">published_date</span> <span class="param-optional">(optional)</span>: Publication date (ISO format)</li>
+                                            <li><span class="param-name">source</span> <span class="param-optional">(optional)</span>: Article source (default: "company")</li>
+                                            <li><span class="param-name">categories</span> <span class="param-optional">(optional)</span>: List of categories (default: ["company"])</li>
+                                            <li><span class="param-name">image_url</span> <span class="param-optional">(optional)</span>: URL to article image</li>
+                                        </ul>
+                                        <h6>Example:</h6>
+                                        <div class="code-block">POST /api/company/add
+{
+  "title": "Company Announces New Product",
+  "url": "https://company.com/news/new-product",
+  "summary": "Company has announced a new product that will revolutionize the industry.",
+  "content": "Detailed article content...",
+  "source": "company-blog",
+  "categories": ["product", "announcement"]
+}</div>
+                                    </div>
+                                    
+                                    <div class="api-route">
+                                        <h5><span class="method-get">GET</span> /api/company/sources</h5>
+                                        <p>Get all available company news sources.</p>
+                                        <h6>Example:</h6>
+                                        <div class="code-block">GET /api/company/sources</div>
+                                    </div>
+                                    
+                                    <div class="api-route">
+                                        <h5><span class="method-get">GET</span> /api/company/categories</h5>
+                                        <p>Get all available company news categories.</p>
+                                        <h6>Example:</h6>
+                                        <div class="code-block">GET /api/company/categories</div>
+                                    </div>
+                                    
+                                    <div class="api-route">
+                                        <h5><span class="method-get">GET</span> /api/company/stats</h5>
+                                        <p>Get statistics about articles in the company news collection.</p>
+                                        <h6>Example:</h6>
+                                        <div class="code-block">GET /api/company/stats</div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Monitoring API Section -->
+                                <div class="api-section">
+                                    <h4>Monitoring API</h4>
+                                    
+                                    <div class="api-route">
+                                        <h5><span class="method-get">GET</span> /api/monitoring/requests</h5>
+                                        <p>Get recent API requests for monitoring.</p>
+                                        <h6>Example:</h6>
+                                        <div class="code-block">GET /api/monitoring/requests</div>
+                                    </div>
+                                    
+                                    <div class="api-route">
+                                        <h5><span class="method-get">GET</span> /api/monitoring/stats</h5>
+                                        <p>Get statistics about articles in the vector store.</p>
+                                        <h6>Example:</h6>
+                                        <div class="code-block">GET /api/monitoring/stats</div>
+                                    </div>
+                                    
+                                    <div class="api-route">
+                                        <h5><span class="method-get">GET</span> /health</h5>
+                                        <p>Health check endpoint.</p>
+                                        <h6>Example:</h6>
+                                        <div class="code-block">GET /health</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Right Column: API Testing Tool -->
+            <div class="col-md-5">
+                <div class="card">
+                    <div class="card-header">
+                        <span>API Testing Tool</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="endpointSelect" class="form-label">Select Endpoint</label>
+                            <select class="form-select" id="endpointSelect">
+                                <option value="" selected>Choose an endpoint...</option>
+                                <optgroup label="News Articles API">
+                                    <option value="/api/search">GET /api/search</option>
+                                    <option value="/api/sources">GET /api/sources</option>
+                                    <option value="/api/categories">GET /api/categories</option>
+                                    <option value="/api/stats">GET /api/stats</option>
+                                </optgroup>
+                                <optgroup label="Company News API">
+                                    <option value="/api/company/search">GET /api/company/search</option>
+                                    <option value="/api/company/add">POST /api/company/add</option>
+                                    <option value="/api/company/sources">GET /api/company/sources</option>
+                                    <option value="/api/company/categories">GET /api/company/categories</option>
+                                    <option value="/api/company/stats">GET /api/company/stats</option>
+                                </optgroup>
+                                <optgroup label="Monitoring API">
+                                    <option value="/health">GET /health</option>
+                                </optgroup>
+                            </select>
+                        </div>
+                        
+                        <!-- Parameter Form -->
+                        <div id="parameterForm">
+                            <!-- Dynamic parameters will be added here based on selected endpoint -->
+                        </div>
+                        
+                        <!-- Request Body for POST requests -->
+                        <div id="requestBodyContainer" class="mb-3 d-none">
+                            <label for="requestBody" class="form-label">Request Body (JSON)</label>
+                            <textarea class="form-control" id="requestBody" rows="8"></textarea>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <button id="sendRequest" class="btn btn-primary">Send Request</button>
+                            <button id="clearResults" class="btn btn-outline-secondary ms-2">Clear Results</button>
+                        </div>
+                        
+                        <!-- Results Section -->
+                        <div class="mb-3">
+                            <label for="requestUrl" class="form-label">Request URL</label>
+                            <input type="text" class="form-control" id="requestUrl" readonly>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="responseStatus" class="form-label">Response Status</label>
+                            <input type="text" class="form-control" id="responseStatus" readonly>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="responseBody" class="form-label">Response Body</label>
+                            <div id="responseBody" class="border rounded p-3 bg-light" style="max-height: 400px; overflow-y: auto; font-family: monospace;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/socket.io/client-dist/socket.io.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Connect to Socket.IO server
+            const socket = io();
+            
+            // DOM elements - Logs and Status
+            const logContainer = document.getElementById('logContainer');
+            const clearLogsBtn = document.getElementById('clearLogs');
+            const qdrantStatus = document.getElementById('qdrantStatus');
+            const processorStatus = document.getElementById('processorStatus');
+            const apiStatus = document.getElementById('apiStatus');
+            const uiStatus = document.getElementById('uiStatus');
+            
+            // DOM elements - API Testing Tool
+            const endpointSelect = document.getElementById('endpointSelect');
+            const parameterForm = document.getElementById('parameterForm');
+            const requestBodyContainer = document.getElementById('requestBodyContainer');
+            const requestBody = document.getElementById('requestBody');
+            const sendRequestBtn = document.getElementById('sendRequest');
+            const clearResultsBtn = document.getElementById('clearResults');
+            const requestUrlField = document.getElementById('requestUrl');
+            const responseStatusField = document.getElementById('responseStatus');
+            const responseBodyDiv = document.getElementById('responseBody');
+            
+            // Initialize UI
+            fetchInitialData();
+            startStatusUpdates();
+            initApiTestingTool();
+            
+            // Socket.IO event handlers
+            socket.on('connect', () => {
+                console.log('Connected to server');
+                uiStatus.classList.remove('status-stopped');
+                uiStatus.classList.add('status-running');
+            });
+            
+            socket.on('disconnect', () => {
+                console.log('Disconnected from server');
+                uiStatus.classList.remove('status-running');
+                uiStatus.classList.add('status-stopped');
+            });
+            
+            socket.on('new_log', (data) => {
+                appendLog(data.log);
+            });
+            
+            // Button event handlers
+            clearLogsBtn.addEventListener('click', () => {
+                logContainer.innerHTML = '';
+            });
+            
+
+            
+            // Functions
+            function fetchInitialData() {
+                // Fetch logs
+                fetch('/api/logs')
+                    .then(response => response.json())
+                    .then(data => {
+                        data.logs.forEach(log => {
+                            appendLog(log);
+                        });
+                    })
+                    .catch(error => console.error('Error fetching logs:', error));
+            }
+            
+            function startStatusUpdates() {
+                // Update status every 5 seconds
+                setInterval(() => {
+                    fetch('/api/status')
+                        .then(response => response.json())
+                        .then(data => {
+                            updateStatusIndicators(data.status);
+                        })
+                        .catch(error => console.error('Error fetching status:', error));
+                }, 5000);
+            }
+            
+            function updateStatusIndicators(status) {
+                // Update Qdrant status
+                qdrantStatus.classList.toggle('status-running', status.qdrant);
+                qdrantStatus.classList.toggle('status-stopped', !status.qdrant);
+                
+                // Update Processor status
+                processorStatus.classList.toggle('status-running', status.processor);
+                processorStatus.classList.toggle('status-stopped', !status.processor);
+                
+                // Update API status
+                apiStatus.classList.toggle('status-running', status.api);
+                apiStatus.classList.toggle('status-stopped', !status.api);
+                
+                // Update UI status
+                uiStatus.classList.toggle('status-running', status.ui);
+                uiStatus.classList.toggle('status-stopped', !status.ui);
+            }
+            
+            function appendLog(log) {
+                console.log('Received log:', log);
+                const logEntry = document.createElement('div');
+                logEntry.className = 'log-entry';
+                logEntry.textContent = log;
+                logContainer.appendChild(logEntry);
+                
+                // Auto-scroll to bottom
+                logContainer.scrollTop = logContainer.scrollHeight;
+                
+                // For debugging - log to console how many entries we have
+                if (logContainer.children.length % 10 === 0) {
+                    console.log(`Log container now has ${logContainer.children.length} entries`);
+                }
+            }
+            
+            // API Testing Tool Functions
+            function initApiTestingTool() {
+                // Define endpoint parameter templates
+                const endpointParams = {
+                    '/api/search': [
+                        { name: 'query', type: 'text', placeholder: 'Search query', required: false },
+                        { name: 'limit', type: 'number', placeholder: '10', required: false },
+                        { name: 'min_score', type: 'number', placeholder: '0.35', required: false, step: '0.01' },
+                        { name: 'source', type: 'text', placeholder: 'Source name', required: false },
+                        { name: 'category', type: 'text', placeholder: 'Category name', required: false },
+                        { name: 'date', type: 'date', placeholder: 'YYYY-MM-DD', required: false },
+                        { name: 'date_operand', type: 'select', options: ['on', 'before', 'after', 'on_or_before', 'on_or_after', '<=', '>='], required: false }
+                    ],
+                    '/api/sources': [],
+                    '/api/categories': [],
+                    '/api/stats': [],
+                    '/api/company/search': [
+                        { name: 'query', type: 'text', placeholder: 'Search query', required: false },
+                        { name: 'limit', type: 'number', placeholder: '10', required: false },
+                        { name: 'min_score', type: 'number', placeholder: '0.35', required: false, step: '0.01' },
+                        { name: 'source', type: 'text', placeholder: 'Source name', required: false },
+                        { name: 'category', type: 'text', placeholder: 'Category name', required: false },
+                        { name: 'date', type: 'date', placeholder: 'YYYY-MM-DD', required: false },
+                        { name: 'date_operand', type: 'select', options: ['on', 'before', 'after', 'on_or_before', 'on_or_after', '<=', '>='], required: false }
+                    ],
+                    '/api/company/add': {
+                        method: 'POST',
+                        bodyTemplate: {
+                            "title": "Company Announces New Product",
+                            "url": "https://company.com/news/new-product",
+                            "summary": "Company has announced a new product that will revolutionize the industry.",
+                            "content": "Detailed article content...",
+                            "source": "company-blog",
+                            "categories": ["product", "announcement"]
+                        }
+                    },
+                    '/api/company/sources': [],
+                    '/api/company/categories': [],
+                    '/api/company/stats': [],
+                    '/health': []
+                };
+                
+                // Event listener for endpoint selection
+                endpointSelect.addEventListener('change', () => {
+                    const endpoint = endpointSelect.value;
+                    if (!endpoint) return;
+                    
+                    const params = endpointParams[endpoint];
+                    
+                    // Clear previous form
+                    parameterForm.innerHTML = '';
+                    requestBodyContainer.classList.add('d-none');
+                    requestBody.value = '';
+                    
+                    // Check if it's a POST endpoint
+                    if (params && params.method === 'POST') {
+                        requestBodyContainer.classList.remove('d-none');
+                        requestBody.value = JSON.stringify(params.bodyTemplate, null, 2);
+                    } else if (params) {
+                        // Create form fields for parameters
+                        params.forEach(param => {
+                            const formGroup = document.createElement('div');
+                            formGroup.className = 'mb-3';
+                            
+                            const label = document.createElement('label');
+                            label.className = 'form-label';
+                            label.textContent = param.name;
+                            label.setAttribute('for', `param-${param.name}`);
+                            
+                            let input;
+                            if (param.type === 'select') {
+                                input = document.createElement('select');
+                                param.options.forEach(option => {
+                                    const optionEl = document.createElement('option');
+                                    optionEl.value = option;
+                                    optionEl.textContent = option;
+                                    input.appendChild(optionEl);
+                                });
+                            } else {
+                                input = document.createElement('input');
+                                input.type = param.type;
+                                input.placeholder = param.placeholder || '';
+                            }
+                            
+                            input.className = 'form-control';
+                            input.id = `param-${param.name}`;
+                            input.name = param.name;
+                            
+                            formGroup.appendChild(label);
+                            formGroup.appendChild(input);
+                            parameterForm.appendChild(formGroup);
+                        });
+                    }
+                });
+                
+                // Event listener for send request button
+                sendRequestBtn.addEventListener('click', () => {
+                    const endpoint = endpointSelect.value;
+                    if (!endpoint) return;
+                    
+                    const params = endpointParams[endpoint];
+                    let url = `http://localhost:8427${endpoint}`;
+                    let method = 'GET';
+                    let requestData = null;
+                    
+                    // Check if it's a POST endpoint
+                    if (params && params.method === 'POST') {
+                        method = 'POST';
+                        try {
+                            requestData = JSON.parse(requestBody.value);
+                        } catch (e) {
+                            alert('Invalid JSON in request body');
+                            return;
+                        }
+                    } else if (params) {
+                        // Add query parameters
+                        const queryParams = [];
+                        params.forEach(param => {
+                            const input = document.getElementById(`param-${param.name}`);
+                            if (input && input.value) {
+                                queryParams.push(`${param.name}=${encodeURIComponent(input.value)}`);
+                            }
+                        });
+                        
+                        if (queryParams.length > 0) {
+                            url += `?${queryParams.join('&')}`;
+                        }
+                    }
+                    
+                    // Update request URL field
+                    requestUrlField.value = url;
+                    
+                    // Send the request
+                    const fetchOptions = {
+                        method: method,
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    };
+                    
+                    if (requestData) {
+                        fetchOptions.body = JSON.stringify(requestData);
+                    }
+                    
+                    fetch(url, fetchOptions)
+                        .then(response => {
+                            responseStatusField.value = `${response.status} ${response.statusText}`;
+                            return response.json();
+                        })
+                        .then(data => {
+                            responseBodyDiv.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                        })
+                        .catch(error => {
+                            responseStatusField.value = 'Error';
+                            responseBodyDiv.innerHTML = `<pre class="text-danger">${error.message}</pre>`;
+                        });
+                });
+                
+                // Event listener for clear results button
+                clearResultsBtn.addEventListener('click', () => {
+                    requestUrlField.value = '';
+                    responseStatusField.value = '';
+                    responseBodyDiv.innerHTML = '';
+                });
+            }
+        });
+    </script>
+</body>
+</html>
